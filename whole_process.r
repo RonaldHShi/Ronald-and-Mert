@@ -42,7 +42,7 @@ whole_process <- function(projects, # use files with project_ids or a vector
   source("~/git/Ronald-and-Mert/get_listof_UUIDs.r")
   source("~/git/Ronald-and-Mert/GDC_metadata_download.RandM.r")
   source("~/git/Ronald-and-Mert/correlate_pcoa.r")
-  source("~/git/Ronald-and-Mert/improve_corr_matrix.r")
+  source("~/git/Ronald-and-Mert/improve_cor_matrix.r")
   library(DESeq)
 
   if (!skip_to_merging) {
