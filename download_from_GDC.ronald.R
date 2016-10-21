@@ -29,27 +29,38 @@ CvNEntireAnalysis <- function(dirname = ".") {
   }
 }
 
-CompareNormalCancerPipeline <- function(projects) {
-  if (any(file.exists(projects))) {
-    vec_of_projects <- vector()
-    # loop through every filename and read in projects to vec_of_projects
+CompareNormalCancerPipeline <- function(projectsVec = F, projectNamesFile = F) {
+  # Entire pipeline for analyzing the normal vs cancer HTSeq counts data in a single or 
+  # multiple projects from the GDC
+  #
+  # Args:
+  #   projectsVec: A project name you wish to analyze alone or a vector of 
+  #                many project names you wish analyze together
+  #   projectNamesFile: A file or a list of files that contain project
+  #                     names separated by line
+  #
+  # Returns:
+  # (None)
+  # Downloads all HTSeq Counts files
+  # Generates PCoA colored by whether the sample is normal or tumor
+  # Generates Heatmap from top 1% of significant genes
+
+  # builds projectsVec from a newline separated projects id file
+  if (projectNamesFile) {
+    projectsVec <- vector()
     for(i in projects) {
-      vec_of_projects <- c(vec_of_projects, scan(i, what = "character", sep = "\n"))
-    }
-    # loop through vec_of_projects and download all HTSeq counts files
-    for(i in vec_of_projects) {
-      download_normal_from_GDC(i)
-    }
-  } else {
-    # else if user inputed a vector of project_ids
-    for(i in projects) {
-      download_normal_from_GDC(i)
+      projectsVec <- c(projectsVec , scan(i, what = "character", sep = "\n"))
     }
   }
-  if (length(list.files(".", all.files = TRUE, include.dirs = TRUE, no.. = TRUE)) == 0) {
-    return()
+
+  # downloads normal samples for every project from GDC
+  for(i in projectsVec) {
+    download_normal_from_GDC(i)
   }
+  # unzips files
   system("gunzip *.gz")
+
+  # download matching cancer samples from GDC
   system("ls | grep .counts$ > normal_filenames")
   vec.normal.filenames <- scan("normal_filenames", what = "character", sep = "\n")
   for (f in vec.normal.filenames) {
@@ -64,6 +75,7 @@ CompareNormalCancerPipeline <- function(projects) {
           matching.cancer.id, "'"))
   }
 
+  # unzip cancer files
   system("gunzip *.gz")
   system("ls | grep .counts$ > all_filenames")
 
@@ -120,16 +132,16 @@ CompareNormalCancerPipeline <- function(projects) {
       metadata_table = "all_filenames.merged_data_file_UUIDs.GDC_METADATA.txt.addedcol", 
       metadata_column = "normOrCancer")
 }
+
 download_normal_from_GDC <- function(projects) {
-# download normal sample HTSeq Counts data for a given project
-# 
-# Args:
-#   project: vector of files that contain project_ids or 
-  #            a vector of projects
+  # download normal sample HTSeq Counts data for a given project
+  # 
+  # Args:
+  #   project: vector of project names
   #
   # Returns:
   #   (None)
-  #   Downloads all HTSeq Counts files as *.gz, need to unzip
+  #   Downloads all HTSeq Counts files as *.gz, need to be unzippped afterward
   for (p in projects) {
     print(p)
     my_call <- paste0("https://gdc-api.nci.nih.gov/files?fields=file_id&size=99999&pretty=true&filters=%7B%22op%22%3A%22and%22%2C%22content%22%3A%5B%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.samples.sample_type%22%2C%22value%22%3A%5B%22Blood+Derived+Normal%22%2C%22Solid+Tissue+Normal%22%2C%22Bone+Marrow+Normal%22%2C%22Fibroblasts+from+Bone+Marrow+Normal%22%2C%22Buccal+Cell+Normal%22%5D%7D%7D%2C%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22analysis.workflow_type%22%2C%22value%22%3A%5B%22HTSeq+-+Counts%22%5D%7D%7D%2C%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22files.data_format%22%2C%22value%22%3A%5B%22TXT%22%5D%7D%7D%2C%7B%22op%22%3A%22%3D%22%2C%22content%22%3A%7B%22field%22%3A%22cases.project.project_id%22%2C%22value%22%3A%5B%22", p, "%22%5D%7D%7D%5D%7D")
@@ -147,12 +159,11 @@ download_cancer_from_GDC <- function(projects) {
   # download cancer sample HTSeq Counts data for a given project
   # 
   # Args:
-  #   project: vector of files that contain project_ids or 
-  #            a vector of projects
+  #   project: vector of project names
   #
   # Returns:
   #   (None)
-  #   Downloads all HTSeq Counts files as *.gz, need to unzip
+  #   Downloads all HTSeq Counts files as *.gz, need to be unzippped afterward
   for (p in projects) {
     my_call <- paste0("https://gdc-api.nci.nih.gov/files?fields=file_id&size=99999&pretty=true&filters=%7B%0D%0A%09%22op%22%3A%22and%22%2C%0D%0A%09%22content%22%3A%5B%7B%0D%0A%09%09%22op%22%3A%22in%22%2C%0D%0A%09%09%22content%22%3A%7B%0D%0A%09%09%09%22field%22%3A%22cases.samples.sample_type%22%2C%0D%0A%09%09%09%22value%22%3A%5B%22Primary+Tumor%22%5D%0D%0A%09%09%09%7D%0D%0A%09%09%7D%2C%7B%0D%0A%09%09%22op%22%3A%22in%22%2C%0D%0A%09%09%22content%22%3A%7B%0D%0A%09%09%09%22field%22%3A%22analysis.workflow_type%22%2C%0D%0A%09%09%09%22value%22%3A%5B%22HTSeq+-+Counts%22%5D%0D%0A%09%09%09%7D%0D%0A%09%09%7D%2C%7B%0D%0A%09%09%22op%22%3A%22in%22%2C%0D%0A%09%09%22content%22%3A%7B%0D%0A%09%09%09%22field%22%3A%22files.data_format%22%2C%0D%0A%09%09%09%22value%22%3A%5B%22TXT%22%5D%0D%0A%09%09%09%7D%0D%0A%09%09%7D%2C%7B%0D%0A%09%09%22op%22%3A%22%3D%22%2C%0D%0A%09++++%22content%22%3A%7B%0D%0A%09++++%09%22field%22%3A%22cases.project.project_id%22%2C%0D%0A%09++++%09%22value%22%3A%5B%22", p, "%22%5D%0D%0A%09++++%7D%0D%0A%09%7D%5D%0D%0A%7D")
     my_call.json <- fromJSON(getURL(my_call))
