@@ -140,7 +140,6 @@ whole_process <- function(projects, # use files with project_ids or a vector
   to_log("Created Correlation Matrix")
   to_log("END")
   sink()
-
 }
 
 # logging function: shows time and memory usage

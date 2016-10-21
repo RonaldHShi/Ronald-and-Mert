@@ -74,7 +74,7 @@ get_GDC_metadata <- function(id_list, my_rot="no", output="file",  order_rows=TR
         
         ###########CHANGED
 
-        aendpoints <- get_mapping_options() 
+        endpoints <- get_mapping_options() 
 		# this line is under the library commands inorder to perform it once
         for (endpoint in endpoints){
 			temp <- vector()

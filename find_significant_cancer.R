@@ -1,4 +1,5 @@
 library(dunn.test)
+source("~/git/Ronald-and-Mert/convert_ensembl_to_name.R")
 
 FindSignificantCancer <- function(data.filename, metadata.filename, 
                                   gene, metadata.col, 
@@ -36,7 +37,6 @@ FindSignificantCancer <- function(data.filename, metadata.filename,
   }
   gene.name.table <- data.frame()
   if (convert) {
-    source("~/git/Ronald-and-Mert/convert_ensembl_to_name.R")
     ensembl.ids.sans.ending <- c()
     for (x in strsplit(ensembl.ids, "\\.")) {
       ensembl.ids.sans.ending <- c(ensembl.ids.sans.ending, x[1])
