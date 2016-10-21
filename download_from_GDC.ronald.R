@@ -2,12 +2,32 @@ library(RJSONIO)
 library(RCurl)
 
 source("~/git/Ronald-and-Mert/preprocessing_tool.r")
-source("~/git/Ronald-and-Mert/GDC_raw_count_merge.vRonald.r")
+source("~/git/Ronald-and-Mert/GDC_raw_count_merge.stripped.R")
 source("~/git/Ronald-and-Mert/heatmap_dendrogram.r")
 source("~/git/Ronald-and-Mert/GDC_metadata_download.RandM.r")
 source("~/git/Ronald-and-Mert/calc_stats.r")
+source("~/git/Ronald-and-Mert/calculate_pco.r")
 source("~/git/Ronald-and-Mert/render_calculated_pcoa.r")
+source("~/git/Ronald-and-Mert/get_listof_UUIDs.r")
 library(DESeq)
+
+CvNEntireAnalysis <- function(dirname = ".") {
+  my_call <- "https://gdc-api.nci.nih.gov/projects?fields=project_id&from=1&size=999&sort=project.project_id:asc&pretty=true"
+  my_call.json <- fromJSON(getURL(my_call))
+  proj.list <- unlist(my_call.json$data$hits)
+  for (p in proj.list) {
+    print(p)
+    if (!dir.exists(file.path(dirname, p))) {
+      # create folder if it doesn't exist
+      dir.create(file.path(dirname, p))
+      # go into folder and run whole_process()
+      setwd(file.path(dirname, p))
+      CompareNormalCancerPipeline(p)
+      # return back to /mnt
+      setwd("..")
+    }
+  }
+}
 
 CompareNormalCancerPipeline <- function(projects) {
   if (any(file.exists(projects))) {
@@ -26,13 +46,15 @@ CompareNormalCancerPipeline <- function(projects) {
       download_normal_from_GDC(i)
     }
   }
+  if (length(list.files(".", all.files = TRUE, include.dirs = TRUE, no.. = TRUE)) == 0) {
+    return()
+  }
   system("gunzip *.gz")
   system("ls | grep .counts$ > normal_filenames")
   vec.normal.filenames <- scan("normal_filenames", what = "character", sep = "\n")
-  browser()
   for (f in vec.normal.filenames) {
     file.name <- strsplit(f, "\\.")[[1]][1]
-    my_call <- paste0("https://gdc-api.nci.nih.gov/cases?fields=case_id&size=99999&pretty=true&filters=%7b%0d%0a+++%22op%22+%3a+%22%3d%22+%2c%0d%0a+++%22content%22+%3a+%7b%0d%0a+++++++%22field%22+%3a+%22files.file_id%22+%2c%0d%0a+++++++%22value%22+%3a+%5b+%22", f, "%22+%5d%0d%0a+++%7d%0d%0a%7d")
+    my_call <- paste0("https://gdc-api.nci.nih.gov/cases?fields=case_id&size=99999&pretty=true&filters=%7B%0D%0A+++%22op%22+%3A+%22%3D%22+%2C%0D%0A+++%22content%22+%3A+%7B%0D%0A+++++++%22field%22+%3A+%22files.file_name%22+%2C%0D%0A+++++++%22value%22+%3A+%5B+%22", f, ".gz", "%22+%5D%0D%0A+++%7D%0D%0A%7D")
     my_call.json <- fromJSON(getURL(my_call))
     case.id <- unlist(my_call.json$data$hits)
     my_call <- paste0("https://gdc-api.nci.nih.gov/files?fields=file_id&size=99999&pretty=true&filters=%7B%0D%0A%09%22op%22%3A%22and%22%2C%0D%0A%09%22content%22%3A%5B%7B%0D%0A%09%09%22op%22%3A%22in%22%2C%0D%0A%09%09%22content%22%3A%7B%0D%0A%09%09%09%22field%22%3A%22cases.samples.sample_type%22%2C%0D%0A%09%09%09%22value%22%3A%5B%22Primary+Tumor%22%5D%0D%0A%09%09%09%7D%0D%0A%09%09%7D%2C%7B%0D%0A%09%09%22op%22%3A%22in%22%2C%0D%0A%09%09%22content%22%3A%7B%0D%0A%09%09%09%22field%22%3A%22analysis.workflow_type%22%2C%0D%0A%09%09%09%22value%22%3A%5B%22HTSeq+-+Counts%22%5D%0D%0A%09%09%09%7D%0D%0A%09%09%7D%2C%7B%0D%0A%09%09%22op%22%3A%22in%22%2C%0D%0A%09%09%22content%22%3A%7B%0D%0A%09%09%09%22field%22%3A%22files.data_format%22%2C%0D%0A%09%09%09%22value%22%3A%5B%22TXT%22%5D%0D%0A%09%09%09%7D%0D%0A%09%09%7D%2C%7B%0D%0A%09%09%22op%22%3A%22%3D%22%2C%0D%0A%09++++%22content%22%3A%7B%0D%0A%09++++%09%22field%22%3A%22cases.case_id%22%2C%0D%0A%09++++%09%22value%22%3A%5B%22", case.id, "%22%5D%0D%0A%09++++%7D%0D%0A%09%7D%5D%0D%0A%7D")
@@ -49,21 +71,21 @@ CompareNormalCancerPipeline <- function(projects) {
   GDC_raw_count_merge(id_list="all_filenames")
 
   # gets UUIDs of data merged together
-  export_listof_UUIDs(tsv = "all_file_UUIDs")
+  export_listof_UUIDs(tsv = "all_filenames.merged_data.txt")
 
   # gets metadata file
-  get_GDC_metadata("all_file_UUIDs.merged_data_file_UUIDs", my_rot = "yes")
+  get_GDC_metadata("all_filenames.merged_data_file_UUIDs", my_rot = "yes")
 
   # normalizing the data
   preprocessing_tool(data_in = "all_filenames.merged_data.txt", produce_boxplots = TRUE)
-
+  
   # add normOrCancer col
   metadata.table <- read.table(file="all_filenames.merged_data_file_UUIDs.GDC_METADATA.txt",row.names=1,header=TRUE,sep="\t",
       colClasses = "character", check.names=FALSE,
       comment.char = "",quote="",fill=TRUE,blank.lines.skip=FALSE)
   normOrCancer <- c()
   for (r in row.names(metadata.table)) {
-    if (r %in% vec.normal.filenames) {
+    if (paste0(r, ".htseq.counts") %in% vec.normal.filenames) {
       normOrCancer <- c(normOrCancer, "Normal")
     } else {
       normOrCancer <- c(normOrCancer, "Cancer")
@@ -72,26 +94,27 @@ CompareNormalCancerPipeline <- function(projects) {
   added.col.metadata.table <- cbind(metadata.table, normOrCancer)
   write.table(added.col.metadata.table, file = "all_filenames.merged_data_file_UUIDs.GDC_METADATA.txt.addedcol", 
       sep = "\t", quote = F, col.names = NA, row.names = T)
-
+  
   # generate PCoA
+  calculate_pco(file_in = "all_filenames.merged_data.txt.DESeq_blind.PREPROCESSED.txt")
   render_calculated_pcoa(PCoA_in= "all_filenames.merged_data.txt.DESeq_blind.PREPROCESSED.txt.euclidean.PCoA", 
       metadata_table = "all_filenames.merged_data_file_UUIDs.GDC_METADATA.txt.addedcol", 
       metadata_column_index = "normOrCancer")
-
+  
   # calc stats
   calc_stats(data_table = "all_filenames.merged_data.txt.DESeq_blind.PREPROCESSED.txt", 
       metadata_table = "all_filenames.merged_data_file_UUIDs.GDC_METADATA.txt.addedcol", 
       metadata_column = "normOrCancer")
-
+  
   # take top 1% of genes
-  stats.table <- read.table(file = "counts_files.merged_data.txt.DESeq_blind.PREPROCESSED.txt.Kruskal-Wallis.normal.or.tumor.col.STATS_RESULTS.txt",
+  stats.table <- read.table(file = "all_filenames.merged_data.txt.DESeq_blind.PREPROCESSED.txt.Kruskal-Wallis.normOrCancer.STATS_RESULTS.txt",
       row.names = 1,header = TRUE,sep = "\t",
       colClasses = "character", check.names = FALSE,comment.char = "", 
       fill = TRUE, blank.lines.skip = FALSE)
   filtered.stats.table <- stats.table[1:floor(nrow(stats.table)/100), 1:(ncol(stats.table) - 7)]
   write.table(filtered.stats.table, file = "counts_files.merged_data.txt.DESeq_blind.PREPROCESSED.txt.Kruskal-Wallis.normal.or.tumor.col.STATS_REMOVED.filtered.txt", 
       sep = "\t", quote = F, col.names = NA, row.names = T)
-
+  
   # generate heatmap
   heatmap_dendrogram(file_in = "counts_files.merged_data.txt.DESeq_blind.PREPROCESSED.txt.Kruskal-Wallis.normal.or.tumor.col.STATS_REMOVED.filtered.txt", 
       metadata_table = "all_filenames.merged_data_file_UUIDs.GDC_METADATA.txt.addedcol", 
